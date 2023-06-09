@@ -1,109 +1,44 @@
 import pygame
 from pygame.locals import *
 
-from enum import Enum
+from constants import *
+from entities  import *
+from enums     import GameScreens
 
-pygame.init()
+'''GAME SCREEN STUFF'''
 
-# important stuff
-FPS = 60
-WIDTH, HEIGHT = 224, 256
-# assets
-INVADER1_IMG = pygame.image.load('assets/invader1.png')
-INVADER2_IMG = pygame.image.load('assets/invader2.png')
-INVADER3_IMG = pygame.image.load('assets/invader3.png')
-
-class Invader:
-    IMAGES = [INVADER1_IMG, INVADER2_IMG, INVADER3_IMG]
-
-    def __init__(self, x, y, t):
-        self.t = t # invader type
-        self.i = 0 # animation state
-        # position
-        self.x = x
-        self.y = y
-
-    def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
-
-    def rect(self):
-        if self.t == 2:
-            return pygame.Rect(self.x, self.y, 12, 8)
-        if self.t == 1:
-            return pygame.Rect(self.x + 1, self.y, 11, 8)
-        return pygame.Rect(self.x + 2, self.y, 8, 8)
-
-    def render(self, canvas):
-        tex = Invader.IMAGES[self.t]
-        canvas.blit(tex, (self.x, self.y), (self.i, 0, 12, 8))
-
-class Horde:
-    def __init__(self):
-        self.dx = 2
-        self.dy = 0
-       
-        self.invaders = []
-        self.invaders_updated = 0
-        # appending invaders in a specific order
-        for y in range(128, 64 - 1, -16):
-            for x in range(24, 200, 16):
-                self.invaders.append(Invader(x, y, 0))
-        # correcting invader types
-        for i in range(22):
-            self.invaders[i + 22].t = 1 # 2nd and 3rd rows
-            self.invaders[i     ].t = 2 # 4th and 5th rows
-
-    def has_collided_with_borders(self):
-        bounds = pygame.Rect(12, 0, WIDTH - 24, HEIGHT)
-        for invader in self.invaders:
-            rect = pygame.Rect(invader.x, invader.y, 12, 8)
-            if not bounds.contains(rect):
-                return True
-        return False
-
-    def update(self):
-        # don't try to update an empty horde
-        if len(self.invaders) == 0:
-            return
-
-        # update invader
-        i = self.invaders_updated
-        self.invaders[i].move(self.dx, self.dy)
-        self.invaders[i].i = (self.invaders[i].i + 12) % 24
-        # update number of updated invaders
-        self.invaders_updated = (i + 1) % len(self.invaders)
-        # all updated
-        if self.invaders_updated == 0:
-            if self.has_collided_with_borders():
-                self.dx = -self.dx
-                self.dy = 8
-            else:
-                self.dy = 0
-
-    def render(self, canvas):
-        for invader in self.invaders:
-            invader.render(canvas)
-
-
-class Collisions:
+def process_play_event(state, event):
     pass
 
+def update_play(state):
+    state.horde.update()
+    state.cannon.update(state.get_timelapse())
 
-class GameScreen(Enum):
-    NONE = 0
-    PLAY = 1
+def render_play(state):
+    canvas = state.canvas
 
-class GameState:
+    canvas.fill((0, 0, 0))
+    state.horde.render(canvas)
+    state.cannon.render(canvas)
+
+    # scale canvas to real window size before rendering
+    surface = state.surface
+    pygame.transform.scale(canvas, surface.get_size(), surface)
+    pygame.display.flip()
+
+class Game:
     def __init__(self):
-        self.screen = GameScreen.PLAY
+        self.screen = GameScreens.PLAY
         # internal clock
         self.time_before = 0
         self.time_now    = 0
         self.event_await_time = 1000 // FPS
-        # window
+        # window setup
         self.surface = pygame.display.set_mode((2*WIDTH, 2*HEIGHT), pygame.RESIZABLE)
         self.canvas = pygame.Surface((WIDTH, HEIGHT))
+        # game entities
+        self.horde = Horde()
+        self.cannon = Cannon()
 
     def update_clock(self):
         self.time_before = self.time_now
@@ -112,45 +47,42 @@ class GameState:
     def get_timelapse(self):
         return self.time_now - self.time_before
 
-state = GameState()
-horde = Horde()
+    def process_event(self, event):
+        if event.type == pygame.QUIT:
+            self.screen = GameScreens.NONE
+        else:
+            if   self.screen == GameScreens.PLAY:
+                process_play_event(self, event)
 
-def process_event(event):
-    if event.type == pygame.QUIT:
-        state.screen = GameScreen.NONE
+    def frame(self):
+        if   self.screen == GameScreens.PLAY:
+            update_play(self)
+            render_play(self)
 
-def update():
-    horde.update()
+    def loop(self):
+        while self.screen != GameScreens.NONE:
+            event = pygame.event.wait(self.event_await_time)
+            if event.type == pygame.NOEVENT:
+                self.frame()
+                self.update_clock()
 
-def render():
-    # quick aliases
-    surface = state.surface
-    canvas  = state.canvas
+                # reset event await time
+                self.event_await_time = 1000 // FPS
+            else:
+                self.process_event(event)
+                self.update_clock()
 
-    canvas.fill((0, 0, 0))
-    horde.render(canvas)
-    # scale canvas to real window size before rendering
-    pygame.transform.scale(canvas, surface.get_size(), surface)
-    pygame.display.flip()
+                # wait less time next iteration
+                self.event_await_time -= self.get_timelapse()
+                # pygame needs this for this game loop logic to work
+                if self.event_await_time <= 0:
+                    no_event = pygame.event.Event(pygame.NOEVENT)
+                    pygame.event.post(no_event)
 
-while state.screen != GameScreen.NONE:
-    event = pygame.event.wait(state.event_await_time)
-    if event.type == pygame.NOEVENT:
-        # frame (state update and rendering) here
-        update()
-        render()
 
-        state.update_clock()
-        # reset event await time
-        state.event_await_time = 1000 // FPS
-    else:
-        process_event(event)
-
-        state.update_clock()
-        # wait less time next iteration
-        state.event_await_time -= state.get_timelapse()
-        # pygame needs this for this game loop logic to work
-        if state.event_await_time <= 0:
-            no_event = pygame.event.Event(pygame.NOEVENT)
-            pygame.event.post(no_event)
+if __name__ == '__main__':
+    pygame.init()
+    pygame.display.set_caption('Spyce Invaders')
+    Game().loop()
+    pygame.quit()
 
