@@ -4,6 +4,8 @@ from pygame.locals import *
 from settings import *
 from enums    import *
 
+import random
+
 class Invader:
     INVADER1_IMG = pygame.image.load('assets/invader1.png')
     INVADER2_IMG = pygame.image.load('assets/invader2.png')
@@ -13,14 +15,10 @@ class Invader:
 
     def __init__(self, x, y, t):
         self.t = t # invader type
-        self.i = 0 # animation state
+        self.img_x = 0 # animation state
         # position
         self.x = x
         self.y = y
-
-    def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
 
     def rect(self):
         if self.t == 2:
@@ -31,7 +29,7 @@ class Invader:
 
     def render(self, canvas):
         tex = Invader.IMAGES[self.t]
-        canvas.blit(tex, (self.x, self.y), (self.i, 0, 12, 8))
+        canvas.blit(tex, (self.x, self.y), (self.img_x, 0, 12, 8))
 
 
 class Horde:
@@ -41,8 +39,8 @@ class Horde:
         self.invaders = []
         self.invaders_updated = 0
         # appending invaders in correct order and position
-        for y in range(128, 64-1, -16):
-            for x in range(26, 202, 16):
+        for y in range(128, 64 - 1, -16):
+            for x in range(26, 186 + 1, 16):
                 self.invaders.append(Invader(x, y, 0))
         # fixing wrong invader types
         for i in range(22):
@@ -56,8 +54,7 @@ class Horde:
     def has_reached_border(self):
         bounds = pygame.Rect(12, 0, WIDTH - 24, HEIGHT)
         for invader in self.invaders:
-            rect = pygame.Rect(invader.x, invader.y, 12, 8)
-            if not bounds.contains(rect):
+            if not bounds.contains((invader.x, invader.y, 12, 8)):
                 return True
         return False
 
@@ -73,8 +70,9 @@ class Horde:
                 return
             # update invader
             invader = self.invaders[self.invaders_updated]
-            invader.move(self.dx, self.dy)
-            invader.i = (invader.i + 12) % 24
+            invader.x += self.dx
+            invader.y += self.dy
+            invader.img_x = (invader.img_x + 12) % 24
 
             self.invaders_updated += 1
             if self.invaders_updated == len(self.invaders):
@@ -154,10 +152,45 @@ class Cannon:
         elif self.state == CannonStates.DEAD:
             pass
 
+
 class Tourist:
+    IMAGE = pygame.image.load('assets/tourist.png')
+
     def __init__(self):
         self.state = TouristStates.SPAWNING
 
-        self.x = WIDTH
+        self.x = 16
+        self.dx = 2
         self.score = 0
         self.timer = 0
+
+    def update(self, timelapse):
+        if self.state == TouristStates.ALIVE:
+            self.x += self.dx
+            # bound checking
+            bounds = pygame.Rect(16, 0, WIDTH - 32, HEIGHT)
+            if not bounds.contains((self.x, 40, 16, 8)):
+                self.state = TouristStates.SPAWNING
+                self.x = WIDTH
+                self.dx = 0
+                self.score = random.choice((100, 150, 200, 250, 300))
+                self.timer = 20000 # 20s
+        elif self.state == TouristStates.SPAWNING:
+            if self.timer <= 0:
+                r = random.randint(0, 1)
+                self.state = TouristStates.ALIVE
+                self.x = (16, WIDTH - 32)[r]
+                self.dx = (2, -2)[r]
+                self.timer = 0
+
+        self.timer -= timelapse
+
+    def render(self, canvas):
+        if self.state == TouristStates.ALIVE:
+            canvas.blit(Tourist.IMAGE, (self.x, 40), (4, 0, 16, 8))
+        elif self.state == TouristStates.DYING:
+            canvas.blit(Tourist.IMAGE, (self.x - 4, 40), (24, 0, 16, 8))
+        elif self.state == TouristStates.DEAD:
+            pass
+        elif self.state == TouristStates.SPAWNING:
+            pass

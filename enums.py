@@ -8,6 +8,7 @@ class GameScreens(Enum):
     PAUSE = 5
     OVER  = 6
 
+
 '''Screens enums'''
 
 class MenuStates(Enum):

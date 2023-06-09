@@ -11,8 +11,10 @@ def process_play_event(state, event):
     pass
 
 def update_play(state):
+    dt = state.get_timelapse()
     state.horde.update()
-    state.cannon.update(state.get_timelapse())
+    state.cannon.update(dt)
+    state.tourist.update(dt)
 
 def render_play(state):
     canvas = state.canvas
@@ -20,6 +22,7 @@ def render_play(state):
     canvas.fill((0, 0, 0))
     state.horde.render(canvas)
     state.cannon.render(canvas)
+    state.tourist.render(canvas)
 
     # scale canvas to real window size before rendering
     surfc = state.surface
@@ -64,6 +67,7 @@ class Game:
         # game entities
         self.horde = Horde()
         self.cannon = Cannon()
+        self.tourist = Tourist()
 
     def update_clock(self):
         self.time_before = self.time_now
@@ -80,7 +84,7 @@ class Game:
                 process_play_event(self, event)
 
     def frame(self):
-        if   self.screen == GameScreens.PLAY:
+        if self.screen == GameScreens.PLAY:
             update_play(self)
             render_play(self)
 
