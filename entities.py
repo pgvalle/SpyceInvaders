@@ -1,8 +1,8 @@
 import pygame
 from pygame.locals import *
 
-from constants import *
-from enums     import *
+from settings import *
+from enums    import *
 
 class Invader:
     INVADER1_IMG = pygame.image.load('assets/invader1.png')
@@ -40,16 +40,16 @@ class Horde:
 
         self.invaders = []
         self.invaders_updated = 0
-        # appending invaders in a specific order
+        # appending invaders in correct order and position
         for y in range(128, 64-1, -16):
             for x in range(26, 202, 16):
                 self.invaders.append(Invader(x, y, 0))
-        # correcting invader types
+        # fixing wrong invader types
         for i in range(22):
             self.invaders[i + 22].t = 1 # 2nd and 3rd rows
             self.invaders[i     ].t = 2 # 4th and 5th rows
 
-        # movement direction
+        # velocity
         self.dx = 2
         self.dy = 0
 
@@ -62,7 +62,7 @@ class Horde:
         return False
 
     def update(self):
-        if   self.state == HordeStates.SPAWNING:
+        if self.state == HordeStates.SPAWNING:
             self.invaders_updated += 1
             if self.invaders_updated == len(self.invaders):
                 self.state = HordeStates.MOVING
@@ -72,21 +72,22 @@ class Horde:
             if len(self.invaders) == 0:
                 return
             # update invader
-            i = self.invaders_updated
-            self.invaders[i].move(self.dx, self.dy)
-            self.invaders[i].i = (self.invaders[i].i + 12) % 24
-            # update number of updated invaders
-            self.invaders_updated = (i + 1) % len(self.invaders)
-            # all updated
-            if self.invaders_updated == 0:
+            invader = self.invaders[self.invaders_updated]
+            invader.move(self.dx, self.dy)
+            invader.i = (invader.i + 12) % 24
+
+            self.invaders_updated += 1
+            if self.invaders_updated == len(self.invaders):
                 if self.has_reached_border():
                     self.dx = -self.dx
                     self.dy = 8
                 else:
                     self.dy = 0
 
+                self.invaders_updated = 0
+
     def render(self, canvas):
-        if   self.state == HordeStates.SPAWNING:
+        if self.state == HordeStates.SPAWNING:
             for i in range(self.invaders_updated):
                 self.invaders[i].render(canvas)
         elif self.state == HordeStates.MOVING:
@@ -99,42 +100,64 @@ class Cannon:
 
     def __init__(self):
         self.state = CannonStates.DEAD
+
         self.x = WIDTH
         self.lives = 3
-        self.timer = 2000
-        self.death_anim_i = 0
-    
+        self.timer = 1000
+        # dead state variables
+        self.death_anim_timer = 75
+        self.death_img_x = 16
+
     def update(self, timelapse):
-        if   self.state == CannonStates.ALIVE:
+        if self.state == CannonStates.ALIVE:
             keyboard = pygame.key.get_pressed()
+            # movement
             if keyboard[pygame.K_LEFT]:
                 self.x -= 1
             if keyboard[pygame.K_RIGHT]:
                 self.x += 1
+            # shooting
+            if self.timer <= 0 and keyboard[pygame.K_SPACE]:
+                print('shooting')
+                self.timer = 1000
         elif self.state == CannonStates.DYING:
-            self.timer -= timelapse
+            # update death animation state
+            if self.death_anim_timer <= 0:
+                self.death_anim_timer = 75
+                self.death_img_x = (self.death_img_x + 16) % 32
+
+            self.death_anim_timer -= timelapse
+
+            # state change to DEAD
             if self.timer <= 0:
-                # state change. Set fields
                 self.state = CannonStates.DEAD
                 self.x = WIDTH # prevent unexpected collisions
                 self.lives -= 1
                 self.timer = 2000
-                self.death_anim_i = 0
+                self.death_anim_timer = 75
+                self.death_img_x = 0
         elif self.state == CannonStates.DEAD:
-            self.timer -= timelapse
+            # state change to ALIVE
             if self.timer <= 0:
-                # state change. Set fields
                 self.state = CannonStates.ALIVE
                 self.x = 12
                 self.timer = 0
-                self.death_anim_i = 0
+
+        self.timer -= timelapse # always update timer
 
     def render(self, canvas):
         pos = self.x, HEIGHT - 32
-        if   self.state == CannonStates.ALIVE:
+        if self.state == CannonStates.ALIVE:
             canvas.blit(Cannon.IMAGE, pos, (0, 0, 16, 8))
         elif self.state == CannonStates.DYING:
-            canvas.blit(Cannon.IMAGE, pos, (16 + 16*self.death_anim_i, 0, 16, 8))
+            canvas.blit(Cannon.IMAGE, pos, (16 + self.death_img_x, 0, 16, 8))
         elif self.state == CannonStates.DEAD:
             pass
 
+class Tourist:
+    def __init__(self):
+        self.state = TouristStates.SPAWNING
+
+        self.x = WIDTH
+        self.score = 0
+        self.timer = 0
